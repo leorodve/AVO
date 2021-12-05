@@ -1,6 +1,6 @@
 Program still under development.
 
-Calculates and display Intercept and Gradient attributes given CMP gathers and a Velocity field file (ASCII). More attributes to be added in the future.
+Calculates and display Intercept, Gradient, Pseudo Poisson and Fluid Factor attributes given CMP gathers and a Velocity field file (ASCII). More attributes to be added in the future.
 
 This program was tested using a seismic section containing multiple reflectors, one of which experience a decrease of its amplitude with the offset.
 
