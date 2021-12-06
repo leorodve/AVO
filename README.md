@@ -8,7 +8,7 @@ This program was tested using a seismic section containing multiple reflectors, 
 
 The maximum angle of incidence is close to 20°, making it acceptable to use Shuey's two term AVO equation.
 
-<img src="https://i.imgur.com/ysscLyH.png">
+<img src="https://i.imgur.com/LqQ9Ige.png">
 
 After uploading both files (CMP gathers and velocity field) the program calculates and displays the Intercept (Rp), Gradient (G), Pseudo Poisson (Δσ) and Fluid Factor(ΔF) using linear regression and Shuey's two term AVO equation.
 
