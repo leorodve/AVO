@@ -14,6 +14,8 @@ After uploading both files (CMP gathers and velocity field) the program calculat
 
 <img src="https://i.imgur.com/QjTWSIR.png">
 
-If we zoom in on the reflector between 2000-2200 ms we get:
+If we zoom in on the reflectors between 2050-2075 ms we get:
 
 <img src="https://i.imgur.com/Fj2YbbJ.png">
+
+While the intercept section shows the sandstone (blue) with shale interbeddings (pale red) within the reservoir unit, the gradient section indicates variations in fluid saturation (indicated by the different tones of green) within the reservoir rocks. The green color in the fluid-factor section represents the gas-saturated reservoir sandstone.
