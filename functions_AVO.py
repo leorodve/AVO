@@ -96,25 +96,58 @@ def sample_trace(trace, time, sr):
 
 #Calculate AVO attributes
 def rp_g(gather, vp, cmp_number):
-    global nmo_gather, angle
+    global Offset
     i = 0
     j = 0
+    a = 0
+    b = 0
+    ax = 0
+    bx = 0
+    ab = 0
+    a2 = 0
+    b2 = 0
     angle = np.zeros([1,fold])
     Intercept = np.zeros([ns,1])
     Gradient = np.zeros([ns,1])
+    a_column = np.zeros([ns,1])
+    b_column = np.zeros([ns,1])
+    beta = np.zeros([ns,1])
+    alpha = np.zeros([ns,1])
+    Pseudo_Poisson = np.zeros([ns,1])
+    Fluid_Factor = np.zeros([ns,1])
     Offset = offset_calc(cmp_number)
     nmo_gather = nmo_correction(gather, sr/1000, Offset, vp)
     while i < ns:
         while j < fold:
             angle[0, j] = np.arcsin(Offset[j] / (vp[i] * ns * sr / 1000))
+            a += 5/8 - 0.5 * np.power(gamma, 2) * np.sin(angle[0,j]) + 0.5 * np.power(np.tan(angle[0,j]),2)
+            b += -4 * np.power(gamma, 2) * np.power(np.sin(angle[0,j]),2)
+            ax += a * nmo_gather[i,j]
+            bx += b * nmo_gather[i,j]
+            ab += a * b
+            a2 += np.power(a,2)
+            b2 += np.power(-4*b,2)
             j += 1
+        a_column[i,0] = a
+        b_column[i,0] = b
         x = np.power(np.sin(angle[0,:].reshape((-1,1))),2)
         model = LinearRegression().fit(x, nmo_gather[i,:])
         Intercept[i,0] = model.intercept_
         Gradient[i,0] = model.coef_
+        alpha[i,0] = (ax - (ab * bx / b2)) / (a2 - np.power(ab,2)/b2)
+        beta[i,0] = (bx - ab * alpha[i,0]) / b2
+        Pseudo_Poisson[i,0] = alpha[i,0] - beta[i,0]
+        Fluid_Factor[i,0] = alpha[i,0] - 1.16 * gamma * beta[i,0]
+        a = 0
+        b = 0
+        ax = 0
+        bx = 0
+        ab = 0
+        a2 = 0
+        b2 = 0
         j = 0
         i += 1
-    return Intercept[:,0], Gradient[:,0], nmo_gather
+    return Intercept[:,0], Gradient[:,0], nmo_gather, Pseudo_Poisson[:,0], Fluid_Factor[:,0]
 
 def offset_calc(cmp_no):
     i = cmp_no * fold - fold
@@ -127,26 +160,42 @@ def offset_calc(cmp_no):
     return offset
 
 #Display Intercept and Gradient
-def plot_data(plot1, plot2, vm, vm1, window):    
-    figure = Figure(figsize=(10, 4), dpi=100)
+def plot_data(plot1, plot2, plot3, plot4, vm, vm1, vm2, vm3, window):    
+    figure = Figure(figsize=(10, 6), dpi=100)
     
-    ax1 = figure.add_subplot(1, 2, 1)
-    ax1.imshow(plot1, extent=[0,ng,(ns-1)*sr,0], cmap='brg', vmin=-vm, vmax=vm, aspect='auto')
-#    ax1.imshow(plot1, extent=[0,ng,(ns-1)*sr,0], cmap='Greys', vmin=-vm, vmax=vm, aspect='auto')
+    gyr = cm.gist_rainbow.from_list('new', ('green', 'yellow', 'red'), N=256)
+    
+    ((ax1, ax2), (ax3, ax4)) = figure.subplots(2,2)
+
+    ax1.imshow(plot1, extent=[0,ng,(ns-1)*sr,0], cmap=gyr, vmin=-vm, vmax=vm, aspect='auto')
     ax1.set_xlim(0,ng)
     ax1.set_ylim(ns*sr,0)
     ax1.set_title('Intercept (Rp)')
     ax1.set_xlabel('CMP Number')
     ax1.set_ylabel('Time [ms]')
     
-    ax2 = figure.add_subplot(1, 2, 2)
-    ax2.imshow(plot2, extent=[0,ng,(ns-1)*sr,0], cmap='brg', vmin=-vm1, vmax=vm1, aspect='auto')
-    ax1.set_xlim(0,ng)
-    ax1.set_ylim(ns*sr,0)
+    ax2.imshow(plot2, extent=[0,ng,(ns-1)*sr,0], cmap=gyr, vmin=-vm1, vmax=vm1, aspect='auto')
+    ax2.set_xlim(0,ng)
+    ax2.set_ylim(ns*sr,0)
     ax2.set_title('Gradient (G)')
     ax2.set_xlabel('CMP Number')
     ax2.set_ylabel('Time [ms]')
     
+    ax3.imshow(plot3, extent=[0,ng,(ns-1)*sr,0], cmap=gyr, vmin=-vm2, vmax=vm2, aspect='auto')
+    ax3.set_xlim(0,ng)
+    ax3.set_ylim(ns*sr,0)
+    ax3.set_title('Pseudo Poisson (Δσ)')
+    ax3.set_xlabel('CMP Number')
+    ax3.set_ylabel('Time [ms]')
+    
+    ax4.imshow(plot4, extent=[0,ng,(ns-1)*sr,0], cmap=gyr, vmin=-vm3, vmax=vm3, aspect='auto')
+    ax4.set_xlim(0,ng)
+    ax4.set_ylim(ns*sr,0)
+    ax4.set_title('Fluid Factor (ΔF)')
+    ax4.set_xlabel('CMP Number')
+    ax4.set_ylabel('Time [ms]')
+    
+    figure.tight_layout()
     canvas = FigureCanvasTkAgg(figure, window)
     return canvas
 
@@ -162,7 +211,8 @@ def display_data_window():
     nt = len(st.traces)                      #Number of traces in SEGY file
     sr = int(st.traces[0].stats.segy.trace_header.sample_interval_in_ms_for_this_trace/1000) #Sample rate (ms)
     ns = len(st.traces[0].data)             #Number of samples per trace
-    fold = fold_entry.get()                 #Fold given by the user 
+    fold = fold_entry.get()                 #Fold given by the user
+    gamma = gamma_entry.get()                 #Vs/Vp given by the user
     ng = int(nt / fold)
     Section = np.zeros((ns, fold))
     nmo_section = np.zeros((ns, fold))
@@ -170,21 +220,25 @@ def display_data_window():
     stack = np.zeros([ns,ng])
     Rp = np.zeros([ns,ng])
     G = np.zeros([ns,ng])
+    Delta_sigma = np.zeros([ns,ng])
+    Delta_F = np.zeros([ns,ng])
     i = 0
     while i <= nt-1:
         k = 0
         j = int(i // fold) + 1
         while j == int(i // fold) + 1:
-            Section[:,k] += st.traces[i].data[:]
+            Section[:,k] = st.traces[i].data[:]
             i += 1
             k += 1
-        Intercept (Rp) and Gradient (G)
-        Rp[:,j-1], G[:,j-1], nmo_section = rp_g(Section, vel[:,j-1], j)
+        # Calculate Intercept (Rp) and Gradient (G)
+        Rp[:,j-1], G[:,j-1], nmo_section, Delta_sigma[:,j-1], Delta_F[:,j-1] = rp_g(Section, vel[:,j-1], j)
         for a, amplitude in enumerate(nmo_section):
-            stack[a,j-1] = sum(amplitude)
+            stack[a,j-1] = sum(amplitude) / (fold + 1)
     vm = np.percentile(Rp, 99)
     vm1 = np.percentile(G, 99)
-    first_plot = plot_data(Rp, G, vm, vm1, root)
+    vm2 = np.percentile(Delta_sigma, 99)
+    vm3 = np.percentile(Delta_F, 99)
+    first_plot = plot_data(Rp, G, Delta_sigma, Delta_F, vm, vm1, vm2, vm3, root)
     first_plot.get_tk_widget().grid(row=0, column=0, columnspan=2)
 
     return root    
@@ -194,9 +248,12 @@ def welcome_window():
     ttk.Button(root, text="Please select a CMP ordered SEG-Y file", command=upload_segy).grid(column=0, row=1, columnspan=3)
     ttk.Button(root, text="Please select a Velocity file", command=upload_velocity).grid(column=0, row=2, columnspan=3)
     ttk.Label(root, text="Fold").grid(column=0, row=3)
-    third_entry = ttk.Entry(root, textvariable=fold_entry)
-    third_entry.grid(column=1, row=3, columnspan=2)
-    ttk.Button(root, text="Next", command=display_data_window).grid(column=0, row=4, columnspan=3)
+    second_entry = ttk.Entry(root, textvariable=fold_entry)
+    second_entry.grid(column=1, row=3, columnspan=2)
+    ttk.Label(root, text="Vs/Vp").grid(column=0, row=4)
+    third_entry = ttk.Entry(root, textvariable=gamma_entry)
+    third_entry.grid(column=1, row=4, columnspan=2)
+    ttk.Button(root, text="Next", command=display_data_window).grid(column=0, row=5, columnspan=3)
     
     return root
 
@@ -207,6 +264,8 @@ root.title("AVO Analysis Program")
 #variables (default values)
 fold_entry = IntVar()
 fold_entry.set("10")
+gamma_entry = DoubleVar()
+gamma_entry.set("0.5")
 
 welcome_frame = welcome_window()
 root.mainloop()
